@@ -6,85 +6,52 @@
 //
 
 import SwiftUI
-import Supabase
+import SwiftUI
 
 struct ContentView: View {
-    @State private var jobs: [Job] = []
-    @State private var newJobText = "" // Just one text field needed now
+    // The View only owns the ViewModel. No kitchen sink.
+    @State private var viewModel = JobsViewModel()
     
     var body: some View {
         NavigationStack {
-            VStack {
-                // Form to add a new job
-                Form {
-                    Section("Add New Job") {
-                        TextField("Enter Job Details...", text: $newJobText)
-                        Button("Save Job") {
-                            Task { await saveJob() }
-                        }
-                        .disabled(newJobText.isEmpty)
-                    }
+            Form {
+                Section("Add New Job") {
+                    TextField("Enter Job Details...", text: $viewModel.newJobText)
                     
-                    // List to view existing jobs
-                    Section("My Jobs") {
-                        if jobs.isEmpty {
-                            Text("No jobs tracked yet.")
+                    Button(action: {
+                        // Triggers the asynchronous background task cleanly
+                        Task { await viewModel.saveJob() }
+                    }) {
+                        if viewModel.isSaving {
+                            ProgressView() // Lean, native loading spinner
                         } else {
-                            List(jobs) { item in
-                                VStack(alignment: .leading) {
-                                    Text(item.job).font(.body)
-                                }
-                            }
+                            Text("Save Job")
+                        }
+                    }
+                    // Performance optimization: Disable button if empty or saving
+                    .disabled(viewModel.newJobText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSaving)
+                }
+                
+                Section("My Jobs") {
+                    if viewModel.jobs.isEmpty {
+                        Text("No jobs tracked yet.")
+                            .foregroundColor(.gray)
+                    } else {
+                        List(viewModel.jobs) { item in
+                            Text(item.job)
+                                .font(.body)
                         }
                     }
                 }
             }
-            .navigationTitle("Job Manager")
+            .navigationTitle("Job Tracker")
             .task {
-                await fetchJobs()
+                // Initiates a clean, non-blocking background network fetch when the view appears
+                await viewModel.fetchJobs()
             }
-        }
-    }
-    
-    // FETCH JOBS FROM SUPABASE
-    func fetchJobs() async {
-        do {
-            let fetchedJobs: [Job] = try await SupabaseManager.client
-                .from("Jobs") // Looks at your 'jobs' table
-                .select()
-                .execute()
-                .value
-            
-            await MainActor.run {
-                self.jobs = fetchedJobs
-            }
-        } catch {
-            print("Error fetching jobs: \(error)")
-        }
-    }
-    
-    // INSERT JOB INTO SUPABASE
-    func saveJob() async {
-        let freshJob = Job(id: nil, createdAt: nil, job: newJobText)
-        
-        do {
-            let _ = try await SupabaseManager.client
-                .from("Jobs")
-                .insert(freshJob)
-                .execute()
-            
-            // Clear field and refresh the list
-            await MainActor.run {
-                newJobText = ""
-            }
-            await fetchJobs()
-            
-        } catch {
-            print("Error saving job: \(error)")
         }
     }
 }
-
 #Preview {
     ContentView()
 }
