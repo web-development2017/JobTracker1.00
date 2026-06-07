@@ -37,9 +37,15 @@ struct ContentView: View {
                         Text("No jobs tracked yet.")
                             .foregroundColor(.gray)
                     } else {
-                        List(viewModel.jobs) { item in
-                            Text(item.job)
-                                .font(.body)
+                        List {
+                            ForEach(viewModel.jobs) { item in
+                                Text(item.job)
+                                    .font(.body)
+                            }
+                            .onDelete { indexSet in
+                                // This triggers the delete function we just fixed in the ViewModel
+                                Task { await viewModel.deleteJob(at: indexSet) }
+                            }
                         }
                     }
                 }
