@@ -42,7 +42,7 @@ final class JobsViewModel {
         guard !trimmedJob.isEmpty else { return }
         
         isSaving = true
-        let freshJob = Job(id: nil, createdAt: nil, job: trimmedJob)
+        let freshJob = Job(id: nil, createdAt: nil, job: trimmedJob, status: .unassigned)
         
         do {
             // We remove the Type expectation [Job] and just execute the network request
