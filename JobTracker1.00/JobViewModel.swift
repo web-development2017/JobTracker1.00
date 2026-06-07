@@ -74,18 +74,17 @@ final class JobsViewModel {
         guard let jobId = jobToDelete.id else { return }
         
         do {
-            // 4. Tell Supabase to delete the row where the ID matches
             try await SupabaseManager.client
                 .from("Jobs")
                 .delete()
-                .eq("id", value: jobId) // Matches the specific row ID
+                .eq("id", value: jobId)
                 .execute()
                 
             print("Successfully deleted job from cloud database.")
         } catch {
             print("Error deleting job from cloud: \(error)")
-            // If the network fails, we fetch the data again to restore the UI state safely
-            await fetchJobs()
+            // Put the job back exactly where it was instead of reloading everything
+            jobs.insert(jobToDelete, at: index)
         }
     }
 }
