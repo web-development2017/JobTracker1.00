@@ -47,4 +47,22 @@ class AuthManager {
         try await SupabaseManager.client.auth.signOut()
         self.currentUser = nil
     }
+    
+    
+    var isAdmin: Bool {
+        // 1. Grab the metadata dictionary
+        guard let metadata = currentUser?.userMetadata else { return false }
+        
+        // 2. Look for the "is_admin" key
+        if let adminValue = metadata["is_admin"] {
+            // Unwraps the custom Supabase JSON string or boolean representation
+            if let boolValue = adminValue.boolValue {
+                return boolValue
+            } else if let stringValue = adminValue.stringValue {
+                return stringValue.lowercased() == "true"
+            }
+        }
+        
+        return false
+    }
 }
