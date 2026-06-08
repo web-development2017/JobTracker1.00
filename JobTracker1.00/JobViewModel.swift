@@ -34,15 +34,29 @@ final class JobsViewModel {
         }
     }
     
-    /// Inserts a new job and optimizes performance by updating locally
+    // Inserts a new job and optimizes performance by updating locally
     @MainActor
     func saveJob() async {
         // Lean check: Don't send empty strings or spaces to the database
         let trimmedJob = newJobText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedJob.isEmpty else { return }
         
+        // Security check: Ensure we have a valid logged-in user to stamp as the creator
+        guard let currentUserId = AuthManager.shared.currentUser?.id else {
+            print("Error: Cannot save job because no user is logged in.")
+            return
+        }
+        
         isSaving = true
-        let freshJob = Job(id: nil, createdAt: nil, job: trimmedJob, status: .unassigned)
+        
+        // Pass the currentUserId straight into your freshJob instance
+        let freshJob = Job(
+            id: nil,
+            createdAt: nil,
+            job: trimmedJob,
+            status: .unassigned,
+            created_by: currentUserId // 👈 This maps to your new column
+        )
         
         do {
             // We remove the Type expectation [Job] and just execute the network request
@@ -56,9 +70,11 @@ final class JobsViewModel {
             await fetchJobs()
         } catch {
             print("Error saving job: \(error)")
-        }            // This 'defer' block always runs at the very end, ensuring the loader stops
-            self.isSaving = false
         }
+        
+        // This 'defer' or trailing block always runs at the very end, ensuring the loader stops
+        self.isSaving = false
+    }
     /// Deletes a job from Supabase and updates the UI locally
     @MainActor
     func deleteJob(at offsets: IndexSet) async {

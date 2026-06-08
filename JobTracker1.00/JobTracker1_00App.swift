@@ -9,9 +9,17 @@ import SwiftUI
 
 @main
 struct JobTracker1_00App: App {
+    // 1. Observe our AuthManager state changes
+    @State private var authManager = AuthManager.shared
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            // 2. Dynamically switch views based on authentication status
+            if authManager.isAuthenticated {
+                ContentView()
+            } else {
+                LoginView()
+            }
         }
     }
 }
