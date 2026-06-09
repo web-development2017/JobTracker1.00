@@ -24,19 +24,30 @@ final class JobsViewModel {
     // Tracks the currently selected worker in the UI picker (nil means "General Queue")
     var selectedWorker: Profile? = nil
     
-    /// Fetches jobs from Supabase asynchronously on the MainActor to keep the UI smooth
     @MainActor
     func fetchJobs() async {
+        // 1. Grab the current user's ID. If not logged in, empty the list and stop.
+        guard let currentUserId = AuthManager.shared.currentUser?.id else {
+            self.jobs = []
+            return
+        }
+        
         do {
-            let fetchedJobs: [Job] = try await SupabaseManager.client
-                .from("Jobs")
-                .select()
-                .execute()
-                .value
+            // 2. Start the baseline query to the Jobs table
+            var query = SupabaseManager.client.from("Jobs").select()
+            
+            // 3. If they are a worker (NOT an admin), restrict the rows they can fetch
+            if !AuthManager.shared.isAdmin {
+                // Filter: where assigned_to is NULL (general queue) OR assigned_to equals currentUserId
+                query = query.or("assigned_to.is.null,assigned_to.eq.\(currentUserId)")
+            }
+            
+            // 4. Execute the customized query
+            let fetchedJobs: [Job] = try await query.execute().value
             
             self.jobs = fetchedJobs
         } catch {
-            print("Error fetching jobs: \(error)")
+            print("Error fetching filtered jobs: \(error)")
         }
     }
     /// Fetches all profiles from the public profiles table so admins can assign tasks
@@ -52,6 +63,35 @@ final class JobsViewModel {
             self.workers = fetchedWorkers
         } catch {
             print("Error fetching workers: \(error)")
+        }
+    }
+    
+    /// Updates the status and assignment of a job cleanly in Supabase and refreshes the UI
+    @MainActor
+    func updateJobStatus(job: Job, newStatus: Job.JobStatus) async {
+        guard let jobId = job.id else { return }
+        guard let currentUserId = AuthManager.shared.currentUser?.id else { return }
+        
+        // Create a mutable copy of the job to update fields
+        var updatedJob = job
+        updatedJob.status = newStatus
+        
+        // If a worker is accepting an unassigned job, officially stamp their ID onto it
+        if newStatus == .inProgress && job.assigned_to == nil {
+            updatedJob.assigned_to = currentUserId
+        }
+        
+        do {
+            try await SupabaseManager.client
+                .from("Jobs")
+                .update(updatedJob)
+                .eq("id", value: jobId)
+                .execute()
+                
+            // Refresh the list to reflect changes instantly
+            await fetchJobs()
+        } catch {
+            print("Error updating job status: \(error)")
         }
     }
     

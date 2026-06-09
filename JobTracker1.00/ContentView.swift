@@ -50,9 +50,59 @@ struct ContentView: View {
                     } else {
                         List {
                             ForEach(viewModel.jobs) { item in
-                                Text(item.job)
-                                    .font(.body)
-                                    .deleteDisabled(!canModify(job: item))
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.job)
+                                            .font(.body)
+                                        
+                                        // Status Badge
+                                        Text(item.status.rawValue)
+                                            .font(.caption)
+                                            .bold()
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                            .background(statusColor(for: item.status).opacity(0.15))
+                                            .foregroundColor(statusColor(for: item.status))
+                                            .cornerRadius(4)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    // Contextual Action Buttons for Workers
+                                    if !AuthManager.shared.isAdmin {
+                                        switch item.status {
+                                        case .unassigned, .offered:
+                                            Button("Accept") {
+                                                Task { await viewModel.updateJobStatus(job: item, newStatus: .inProgress) }
+                                            }
+                                            .buttonStyle(.borderless)
+                                            .font(.footnote)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(Color.blue)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(6)
+                                            
+                                        case .inProgress:
+                                            Button("Complete") {
+                                                Task { await viewModel.updateJobStatus(job: item, newStatus: .completed) }
+                                            }
+                                            .buttonStyle(.borderless)
+                                            .font(.footnote)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(Color.green)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(6)
+                                            
+                                        case .completed:
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .deleteDisabled(!canModify(job: item))
                             }
                             .onDelete { indexSet in
                                 // This triggers the delete function we just fixed in the ViewModel
@@ -99,6 +149,14 @@ struct ContentView: View {
         let isUnstarted = (job.status == .unassigned || job.status == .offered)
         
         return isCreator && isUnstarted
+    }
+    func statusColor(for status: Job.JobStatus) -> Color {
+        switch status {
+        case .unassigned: return .gray
+        case .offered: return .orange
+        case .inProgress: return .blue
+        case .completed: return .green
+        }
     }
 }
 #Preview {
