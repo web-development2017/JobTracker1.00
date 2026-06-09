@@ -18,6 +18,12 @@ final class JobsViewModel {
     var newJobText = ""
     var isSaving = false
     
+    // Tracks all available workers fetched from the cloud
+    private(set) var workers: [Profile] = []
+
+    // Tracks the currently selected worker in the UI picker (nil means "General Queue")
+    var selectedWorker: Profile? = nil
+    
     /// Fetches jobs from Supabase asynchronously on the MainActor to keep the UI smooth
     @MainActor
     func fetchJobs() async {
@@ -31,6 +37,21 @@ final class JobsViewModel {
             self.jobs = fetchedJobs
         } catch {
             print("Error fetching jobs: \(error)")
+        }
+    }
+    /// Fetches all profiles from the public profiles table so admins can assign tasks
+    @MainActor
+    func fetchWorkers() async {
+        do {
+            let fetchedWorkers: [Profile] = try await SupabaseManager.client
+                .from("profiles")
+                .select()
+                .execute()
+                .value
+            
+            self.workers = fetchedWorkers
+        } catch {
+            print("Error fetching workers: \(error)")
         }
     }
     
@@ -49,13 +70,17 @@ final class JobsViewModel {
         
         isSaving = true
         
-        // Pass the currentUserId straight into your freshJob instance
+        // If a worker is selected, status is .offered and assigned_to is set.
+        // Otherwise, it defaults to .unassigned and open to anyone.
+        let initialStatus: Job.JobStatus = (selectedWorker != nil) ? .offered : .unassigned
+
         let freshJob = Job(
             id: nil,
             createdAt: nil,
             job: trimmedJob,
-            status: .unassigned,
-            created_by: currentUserId // 👈 This maps to your new column
+            status: initialStatus,
+            created_by: currentUserId,
+            assigned_to: selectedWorker?.id // 👈 Passes the picked worker's UUID
         )
         
         do {
@@ -66,11 +91,11 @@ final class JobsViewModel {
                 .execute()
             
             self.newJobText = ""
-            // Refresh our local array cleanly from the cloud database
+            self.selectedWorker = nil            // Refresh our local array cleanly from the cloud database
             await fetchJobs()
         } catch {
             print("Error saving job: \(error)")
-        }
+    }
         
         // This 'defer' or trailing block always runs at the very end, ensuring the loader stops
         self.isSaving = false

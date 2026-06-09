@@ -18,17 +18,28 @@ struct ContentView: View {
                 Section("Add New Job") {
                     TextField("Enter Job Details...", text: $viewModel.newJobText)
                     
+                    // 👇 If the user is an admin, show the assignment picker
+                    if AuthManager.shared.isAdmin {
+                        Picker("Assign To", selection: Bindable(viewModel).selectedWorker) {
+                            Text("General Queue (Unassigned)").tag(Optional<Profile>.none)
+                            
+                            ForEach(viewModel.workers) { worker in
+                                Text(worker.email ?? "Unknown Worker")
+                                    .tag(Optional<Profile>.some(worker))
+                            }
+                        }
+                        .pickerStyle(.navigationLink) // Clean, native nested menu style
+                    }
+                    
                     Button(action: {
-                        // Triggers the asynchronous background task cleanly
                         Task { await viewModel.saveJob() }
                     }) {
                         if viewModel.isSaving {
-                            ProgressView() // Lean, native loading spinner
+                            ProgressView()
                         } else {
                             Text("Save Job")
                         }
                     }
-                    // Performance optimization: Disable button if empty or saving
                     .disabled(viewModel.newJobText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSaving)
                 }
                 
@@ -65,8 +76,11 @@ struct ContentView: View {
             }
             .navigationTitle("Job Tracker")
             .task {
-                // Initiates a clean, non-blocking background network fetch when the view appears
                 await viewModel.fetchJobs()
+                // 👇 Fetch the workers list if the user is an Admin
+                if AuthManager.shared.isAdmin {
+                    await viewModel.fetchWorkers()
+                }
             }
         }
     }
