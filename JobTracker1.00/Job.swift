@@ -14,6 +14,7 @@ struct Job: Codable, Identifiable, Equatable {
     var status: JobStatus = .unassigned
     var created_by: UUID? // 👈 Add this new field here
     var assigned_to: UUID? // 👈 1. Add this field for targeted assignments
+    var acceptedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -22,6 +23,7 @@ struct Job: Codable, Identifiable, Equatable {
         case status
         case created_by = "created_by" // Maps Swift camelCase to Postgres snake_case
         case assigned_to = "assigned_to" // 👈 2. Map Swift property to Postgres snake_case
+        case acceptedAt = "accepted_at"
             
     }
     

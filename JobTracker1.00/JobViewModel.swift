@@ -12,6 +12,8 @@ import Supabase
 @Observable
 final class JobsViewModel {
     // Read-only from the outside to protect data integrity, mutable only inside this class
+    // Lightweight error surfacing for the UI (optional alert/banner)
+    var lastError: String? = nil
     private(set) var jobs: [Job] = []
     
     // UI state bound directly to the View
@@ -47,7 +49,9 @@ final class JobsViewModel {
             
             self.jobs = fetchedJobs
         } catch {
-            print("Error fetching filtered jobs: \(error)")
+            let message = "Error fetching filtered jobs: \(error.localizedDescription)"
+            self.lastError = message
+            print(message)
         }
     }
     /// Fetches all profiles from the public profiles table so admins can assign tasks
@@ -62,7 +66,9 @@ final class JobsViewModel {
             
             self.workers = fetchedWorkers
         } catch {
-            print("Error fetching workers: \(error)")
+            let message = "Error fetching workers: \(error.localizedDescription)"
+            self.lastError = message
+            print(message)
         }
     }
     
@@ -77,8 +83,18 @@ final class JobsViewModel {
         updatedJob.status = newStatus
         
         // If a worker is accepting an unassigned job, officially stamp their ID onto it
-        if newStatus == .inProgress && job.assigned_to == nil {
-            updatedJob.assigned_to = currentUserId
+//        if newStatus == .inProgress && job.assigned_to == nil {
+//            updatedJob.assigned_to = currentUserId
+//        }
+        
+        // If transitioning to In Progress, capture the exact timestamp
+        if newStatus == .inProgress {
+            updatedJob.acceptedAt = Date()
+            
+            // ONLY stamp their ID if the job was sitting completely unassigned in the queue
+            if job.assigned_to == nil {
+                updatedJob.assigned_to = currentUserId
+            }
         }
         
         do {
@@ -91,7 +107,9 @@ final class JobsViewModel {
             // Refresh the list to reflect changes instantly
             await fetchJobs()
         } catch {
-            print("Error updating job status: \(error)")
+            let message = "Error updating job status: \(error.localizedDescription)"
+            self.lastError = message
+            print(message)
         }
     }
     
@@ -109,6 +127,7 @@ final class JobsViewModel {
         }
         
         isSaving = true
+        defer { isSaving = false }
         
         // If a worker is selected, status is .offered and assigned_to is set.
         // Otherwise, it defaults to .unassigned and open to anyone.
@@ -134,11 +153,10 @@ final class JobsViewModel {
             self.selectedWorker = nil            // Refresh our local array cleanly from the cloud database
             await fetchJobs()
         } catch {
-            print("Error saving job: \(error)")
-    }
-        
-        // This 'defer' or trailing block always runs at the very end, ensuring the loader stops
-        self.isSaving = false
+            let message = "Error saving job: \(error.localizedDescription)"
+            self.lastError = message
+            print(message)
+        }
     }
     /// Deletes a job from Supabase and updates the UI locally
     @MainActor
@@ -163,9 +181,12 @@ final class JobsViewModel {
                 
             print("Successfully deleted job from cloud database.")
         } catch {
-            print("Error deleting job from cloud: \(error)")
+            let message = "Error deleting job from cloud: \(error.localizedDescription)"
+            self.lastError = message
+            print(message)
             // Put the job back exactly where it was instead of reloading everything
             jobs.insert(jobToDelete, at: index)
         }
     }
 }
+
