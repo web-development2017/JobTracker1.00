@@ -11,6 +11,8 @@ import Auth
 struct ContentView: View {
     // The View only owns the ViewModel. No kitchen sink.
     @State private var viewModel = JobsViewModel()
+    @State private var isShowingError = false
+    @State private var errorMessage: String? = nil
     
     var body: some View {
         NavigationStack {
@@ -132,6 +134,20 @@ struct ContentView: View {
                     await viewModel.fetchWorkers()
                 }
             }
+            .onChange(of: viewModel.lastError) { _, newValue in
+                if let msg = newValue, !msg.isEmpty {
+                    errorMessage = msg
+                    isShowingError = true
+                }
+            }
+            .alert("Error", isPresented: $isShowingError, actions: {
+                Button("OK", role: .cancel) {
+                    isShowingError = false
+                    errorMessage = nil
+                }
+            }, message: {
+                Text(errorMessage ?? "Something went wrong.")
+            })
         }
     }
     func canModify(job: Job) -> Bool {
@@ -162,3 +178,4 @@ struct ContentView: View {
 #Preview {
     ContentView()
 }
+
